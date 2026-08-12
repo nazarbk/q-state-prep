@@ -50,7 +50,7 @@ def get_ry_angles(amplitudes: np.ndarray) -> List[List[float]]:
 
     return angles_by_layer
 
-def build_exact_circuit(angles_by_layers: List[List[float]]) -> QuantumCircuit:
+def build_exact_circuit(angles_by_layers: List[List[float]], tol: float = 1e-7) -> QuantumCircuit:
 
     n_qubits = len(angles_by_layers)
     qc = QuantumCircuit(n_qubits)
@@ -59,7 +59,7 @@ def build_exact_circuit(angles_by_layers: List[List[float]]) -> QuantumCircuit:
         if target_qubit == 0:
             # Layer 0: The root node has no dependencies (no controls)
             theta = layer_angles[0]
-            if not np.isclose(theta, 0.0):
+            if abs(theta) > tol:
                 qc.ry(theta, 0)
         else:
             # Layers > 0: Multiple nodes, requires controlled gates
@@ -67,7 +67,7 @@ def build_exact_circuit(angles_by_layers: List[List[float]]) -> QuantumCircuit:
 
             for i, theta in enumerate(layer_angles):
                 # Small optimization: if the angle is 0, we save on the gates
-                if np.isclose(theta, 0.0):
+                if abs(theta) <= tol:
                     continue
 
                 bin_str = format(i, f'0{target_qubit}b')

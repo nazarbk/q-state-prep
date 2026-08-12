@@ -10,8 +10,6 @@ def test_exact_circuit_probabilities():
     circuit = build_exact_circuit(angles)
     aligned_circuit = circuit.reverse_bits()
 
-    print(circuit.draw('mpl'))
-
     state_vector = Statevector(aligned_circuit)
     simulated_probs = state_vector.probabilities()
 
