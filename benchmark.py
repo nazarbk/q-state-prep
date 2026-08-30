@@ -27,6 +27,10 @@ def run_tolerance_becnhmark():
 
     np.random.seed(42)
     amplitudes = np.random.rand(n_states)
+
+    noise_mask = np.random.rand(n_states) > 0.20
+
+    amplitudes[noise_mask] *= 0.05
     amplitudes = amplitudes / np.linalg.norm(amplitudes)
 
     target_sv = Statevector(amplitudes)
