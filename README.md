@@ -18,8 +18,8 @@ This library implements and benchmarks three approaches to solve the initializat
 By shifting the workload from quantum execution to classical training, the VQC architecture successfully prepares complex procedural noise states with radical gate savings.
 
 ![Comparision Chart](comparision_chart.png)
-* **Depth Reduction:** Achieved a reduction from **~1800 CNOTs to just 9 CNOTs**.
-* **Fidelity:** Maintained a state fidelity of **>99%**.
+* **Depth Reduction:** Achieved a reduction from **~578 CNOTs to just 20 CNOTs**.
+* **Fidelity:** Maintained a state fidelity of **>95%**.
 
 ![Learning Curve](learning_curve.png)
 
