@@ -1,3 +1,8 @@
+import sys
+import os
+# Add root directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -7,8 +12,7 @@ from time import time
 from qiskit.quantum_info import Statevector, state_fidelity
 from q_state_prep.exact_prep import get_ry_angles, build_exact_circuit
 from q_state_prep.vqc_prep import create_ansatz, VQCStatePrep
-from q_state_prep.utils import count_cnots
-from train_vqc import generate_noise_map_state
+from q_state_prep.utils import count_cnots, generate_noise_map_state
 
 def run_comparision():
     print("\n ALGORITHM COMPARISION")
@@ -107,7 +111,7 @@ def run_comparision():
     plt.title(f"Impact of VQC on Circuit Depth ({n_qubits} Qubits)\nProcedural Noise", fontsize=14, fontweight='bold')
     plt.grid(True, alpha=0.2)
 
-    file = "./media/comparision_chart.png"
+    file = "../media/comparision_chart.png"
     plt.savefig(file, dpi=300, bbox_inches='tight')
 
     print("=" * 65)

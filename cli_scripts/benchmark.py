@@ -1,3 +1,8 @@
+import sys
+import os
+# Add root directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 from qiskit.quantum_info import Statevector, state_fidelity
 from q_state_prep.exact_prep import get_ry_angles, build_exact_circuit

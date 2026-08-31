@@ -1,26 +1,14 @@
+import sys
+import os
+# Add root directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from q_state_prep.vqc_prep import create_ansatz, get_num_parameters, VQCStatePrep
-from q_state_prep.utils import count_cnots
-
-def generate_noise_map_state(n_qubits: int) -> np.ndarray:
-    """
-    Generates a target state that simulates a 1D visual noise map,
-    ideal for procedural video game environments.
-    """
-
-    n_states = 2**n_qubits
-    x = np.linspace(0, 4 * np.pi, n_states)
-
-    amplitudes = np.sin(x) + 0.5 * np.cos(2.5 * x) + 0.2 * np.random.rand(n_states)
-
-    amplitudes = np.abs(amplitudes)
-
-    amplitudes = amplitudes / np.linalg.norm(amplitudes)
-
-    return amplitudes
+from q_state_prep.utils import count_cnots, generate_noise_map_state
 
 def run_training():
     print("\n STARTING TRAINING: QUANTUM MACHINE LEARNING")
@@ -28,9 +16,9 @@ def run_training():
 
     # 1. System Configuration
     # We'll start with 4 qubits so that training takes seconds, not minutes
-    n_qubits = 4
-    reps = 3
-    maxiter = 500
+    n_qubits = 5
+    reps = 5
+    maxiter = 800
 
     print(f"[*] System: {n_qubits} qubits (Space of {2**n_qubits} states)")
 
