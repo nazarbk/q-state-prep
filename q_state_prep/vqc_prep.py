@@ -2,8 +2,10 @@ from qiskit import QuantumCircuit
 from qiskit.circuit.library import EfficientSU2
 from qiskit.quantum_info import Statevector, state_fidelity
 from scipy.optimize import minimize
-from typing import Tuple, List
+from dataclasses import dataclass
+from typing import  List
 import numpy as np
+import time
 
 def create_ansatz(n_qubits: int, reps: int = 2) -> QuantumCircuit:
     """
@@ -27,12 +29,48 @@ def create_ansatz(n_qubits: int, reps: int = 2) -> QuantumCircuit:
 
     return ansatz.decompose()
 
-def get_num_parameters(n_qubits: int, reps: int) -> int:
+def get_circuit_metrics(ansatz: QuantumCircuit) -> dict:
     """
-    Calculate how many weights (parameters) our AI will need to learn.
+    Calculate structural metrics of a quantum circuit.
+
+    Args:
+        ansatz: Quantum circuit to analyze.
+
+    Returns:
+        Dictionary containing circuit metrics.
     """
 
-    return 2 * n_qubits * (reps + 1)
+    return {
+        "num_qubits": ansatz.num_qubits,
+        "num_parameters": ansatz.num_parameters,
+        "depth": ansatz.depth(),
+        "num_gates": ansatz.size(),
+        "num_cnots": ansatz.count_ops().get('cx', 0),
+    }
+
+@dataclass
+class ExperimentalResult:
+    """
+    Stores the results and metrics of a VQC training experiment
+    """
+
+    weights: np.ndarray
+    fidelity: float
+    cost_history: List[float]
+
+    function_evaluations: int
+    training_time: float
+    success: bool
+    status: int
+    message: str
+
+    seed: int
+
+    num_qubits: int
+    num_parameters: int
+    num_gates: int
+    num_cnots: int
+    depth: int
 
 class VQCStatePrep:
     def __init__(self, target_amplitudes: np.ndarray, ansatz: QuantumCircuit):
@@ -66,22 +104,34 @@ class VQCStatePrep:
 
         return cost
 
-    def train(self, maxiter: int = 300)-> Tuple[np.ndarray, float, List[float]]:
+    def train(self, maxiter: int = 300, seed: int = 42) -> ExperimentalResult:
         """
-        Ejecuta el bucle de optimización clásico-cuántico.
+        Runs the classical-quantum optimization loop.
+
+        Args:
+            - maxiter: Maximum number of objective function evaluations.
+            - seed: Seed used to initialize the VQC parameters.
 
         Returns:
-            - best_weights: Los ángulos finales optimizados.
-            - best_fidelity: La fidelidad máxima alcanzada.
-            - cost_history: La lista con el historial de la función de coste.
+            - best_weights: The final optimized angles.
+            - best_fidelity: The maximum fidelity achieved.
+            - cost_history: The list containing the history of the cost function.
         """
 
         num_params = self.ansatz.num_parameters
 
         # We initialize the angles to random values between -pi and pi
-        np.random.seed(42)
-        initial_weights = np.random.uniform(-np.pi, np.pi, num_params)
+        rgn = np.random.default_rng(seed)
+
+        initial_weights = rgn.uniform(
+            -np.pi, 
+            np.pi, 
+            num_params
+        )
+
         self.cost_history = []
+
+        start_time = time.perf_counter()
 
         result = minimize(
             self._const_function,
@@ -90,7 +140,29 @@ class VQCStatePrep:
             options={'maxiter': maxiter, 'disp': False}
         )
 
-        best_weights = result.x 
-        best_fidelity = 1.0 - result.fun 
+        training_time = time.perf_counter() - start_time
 
-        return best_weights, best_fidelity, self.cost_history
+        metrics = get_circuit_metrics(self.ansatz)
+
+        return ExperimentalResult(
+            weights=result.x,
+            fidelity=1.0 - result.fun,
+            cost_history=self.cost_history.copy(),
+
+            function_evaluations=result.nfev,
+            training_time=training_time,
+
+            success=result.success,
+            status=result.status,
+            message=result.message,
+
+            seed=seed,
+
+            num_qubits=metrics["num_qubits"],
+            num_parameters=metrics["num_parameters"],
+            num_gates=metrics["num_gates"],
+            num_cnots=metrics["num_cnots"],
+            depth=metrics["depth"],
+            
+        )
+        

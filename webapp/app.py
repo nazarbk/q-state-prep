@@ -49,32 +49,32 @@ with st.sidebar:
 
 
 # MAIN PANEL: TARGET STATE VISUALIZATION
-st.header("1. Target: 1D Noise Map")
+st.header("1. Target: Procedural Noise Map (1D & 2D)")
 
 # We wrap the generator in a Streamlit cache decorator
 # This prevents regenerating the random noise unless n_qubits changes
 # Solve, only generates 1 map per n_qubits...
-@st.cache_data
-def get_cache_noise_map(qubits: int) -> np.ndarray:
-    print(f"Noise map state generated: {generate_noise_map_state(qubits)}")
-    return generate_noise_map_state(qubits)
+if 'target_amplitudes' not in st.session_state or st.session_state.get('last_qubits') != n_qubits:
+    st.session_state['target_amplitudes'] = generate_noise_map_state(n_qubits)
+    st.session_state['last_qubits'] = n_qubits
 
 # Generate amplitudes using the cached function
-target_amplitudes = get_cache_noise_map(n_qubits)
+target_amplitudes = st.session_state['target_amplitudes']
 n_states = len(target_amplitudes)
 
-# 1D Profile Plot
-fig_target, ax_target = plt.subplots(figsize=(10, 3))
-ax_target.plot(range(n_states), target_amplitudes, marker='o', color="#2563eb", linewidth=2, markersize=6)
-ax_target.fill_between(range(n_states), target_amplitudes, color="#3b82f6", alpha=0.2)
+st.subheader("1D Amplitude Profile")
+fig_1d, ax_1d = plt.subplots(figsize=(10, 3))
+ax_1d.plot(range(n_states), target_amplitudes, marker='o', color="#2563eb", linewidth=2, markersize=6)
+ax_1d.fill_between(range(n_states), target_amplitudes, color="#3b82f6", alpha=0.2)
 
-ax_target.set_title(f"Ideal Noise Profile ({n_qubits} Qubits | {n_states} States)", fontweight='bold')
-ax_target.set_xlabel("Quantum State Index")
-ax_target.set_ylabel("Probability Amplitude")
-ax_target.grid(True, alpha=0.3)
+ax_1d.set_title(f"Ideal Noise Profile ({n_qubits} Qubits | {n_states} States)", fontweight='bold')
+ax_1d.set_xlabel("Quantum State Index")
+ax_1d.set_ylabel("Amplitude")
+ax_1d.grid(True, alpha=0.3)
 
 # Render plot in Streamlit
-st.pyplot(fig_target)
+st.pyplot(fig_1d)
+
 
 # RENDER PLACEHOLDER (NEXT STEPS)
 if run_button:
@@ -135,10 +135,14 @@ if run_button:
 
         # 2. Train the VQC
         trainer = VQCStatePrep(target_amplitudes, ansatz)
-        best_weights, best_fidelity, cost_history = trainer.train(maxiter=maxiter)
+        result = trainer.train()
+
+        weights = result.weights
+        fidelity = result.fidelity
+        cost_history = result.cost_history
 
         # 3. Simulate final state with the optimized weights
-        bound_circuit = ansatz.assign_parameters(best_weights)
+        bound_circuit = ansatz.assign_parameters(weights)
         vqc_sv = Statevector(bound_circuit)
         vqc_result_amplitudes = np.abs(vqc_sv.data)
 
@@ -148,7 +152,7 @@ if run_button:
     # 4. Display VQC Metrics
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric(label="VQC Fidelity", value=f"{best_fidelity * 100:.2f}%", help="Higher is better")
+        st.metric(label="VQC Fidelity", value=f"{fidelity * 100:.2f}%", help="Higher is better")
     with col2:
         st.metric(label="VQC CNOT Gates", value=vqc_cnots, delta=f"-{cnot_reduction:.1f}% vs Exact", delta_color="inverse")
     with col3:
@@ -163,7 +167,7 @@ if run_button:
     # Exact result line
     ax_vqc.plot(range(n_states), vqc_result_amplitudes, marker='x', color='#ef4444', label='VQC Method', linewidth=2, alpha=0.8)
 
-    ax_vqc.set_title(f"Target vs VQC State Preparation ({best_fidelity * 100:.1f}% Fidelity)", fontweight='bold')
+    ax_vqc.set_title(f"Target vs VQC State Preparation ({fidelity * 100:.1f}% Fidelity)", fontweight='bold')
     ax_vqc.set_xlabel("Quantum State Index")
     ax_vqc.set_ylabel("Amplitude")
     ax_vqc.legend()
