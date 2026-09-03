@@ -9,7 +9,7 @@ import time
 
 def create_ansatz(n_qubits: int, reps: int = 2) -> QuantumCircuit:
     """
-    Creates a hardware-optimized parameterized circuit (Ansatz).
+    Creates a hardware-optimized parameterized circuit (Ansatz) using EfficientU2.
 
     Args:
         n_qubits: Number of qubits.
@@ -21,11 +21,11 @@ def create_ansatz(n_qubits: int, reps: int = 2) -> QuantumCircuit:
     """
 
     ansatz = EfficientSU2(
-                        num_qubits=n_qubits,
-                        su2_gates=['ry', 'rz'],
-                        entanglement='linear',
-                        reps=reps
-                        )
+        num_qubits=n_qubits,
+        su2_gates=['ry', 'rz'],
+        entanglement='linear',
+        reps=reps
+    )
 
     return ansatz.decompose()
 
@@ -65,6 +65,7 @@ class ExperimentalResult:
     message: str
 
     seed: int
+    reps: int
 
     num_qubits: int
     num_parameters: int
@@ -157,6 +158,7 @@ class VQCStatePrep:
             message=result.message,
 
             seed=seed,
+            reps=self.ansatz.metadata["reps"] if "reps" in self.ansatz.metadata else 0,
 
             num_qubits=metrics["num_qubits"],
             num_parameters=metrics["num_parameters"],
