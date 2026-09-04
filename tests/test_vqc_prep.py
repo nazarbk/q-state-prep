@@ -150,6 +150,25 @@ def test_summaryze_by_reps():
         assert 0.0 <= summary[reps]["mean_fidelity"] <= 1.0
         assert 0.0 <= summary[reps]["max_fidelity"] <= 1.0
 
+        assert "mean_time" in summary[reps]
+        assert "std_time" in summary[reps]
+        assert "mean_function_evaluations" in summary[reps]
+
+        assert summary[reps]["mean_time"] >= 0.0
+        assert summary[reps]["std_time"] >= 0.0
+        assert summary[reps]["mean_function_evaluations"] > 0.0
+
+        assert "mean_parameters" in summary[reps]
+        assert "mean_cnots" in summary[reps]
+        assert "mean_depth" in summary[reps]
+        assert "mean_gates" in summary[reps]
+
+        assert summary[reps]["mean_parameters"] > 0.0
+        assert summary[reps]["mean_cnots"] >= 0.0
+        assert summary[reps]["mean_depth"] > 0.0
+        assert summary[reps]["mean_gates"] > 0.0
+
+
         assert (
             summary[reps]["min_fidelity"]
             <= summary[reps]["mean_fidelity"]

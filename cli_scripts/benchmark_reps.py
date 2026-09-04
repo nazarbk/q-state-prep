@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from q_state_prep.vqc_prep import *
 from q_state_prep.experiments import run_reps_benchmark, summarize_by_reps
+from q_state_prep.experiments.plotting import (plot_depth_vs_reps, plot_fidelity_vs_reps, plot_fidelity_vs_depth,  plot_training_time_vs_reps)
 
 
 def main():
@@ -32,16 +33,46 @@ def main():
         )
 
     summary = summarize_by_reps(experiments)
+    
+    plot_fidelity_vs_reps(experiments)
+    plot_training_time_vs_reps(experiments)
+    plot_depth_vs_reps(experiments)
+    plot_fidelity_vs_depth(experiments)
 
     print("\n === SUMMARY BY REPS === ")
 
+    print(
+        f"{'reps':>4} | "
+        f"{'fid_mean':>10} | "
+        f"{'fid_std':>9} | "
+        f"{'fid_min':>10} | "
+        f"{'fid_max':>10} | "
+        f"{'time_mean':>10} | "
+        f"{'time_std':>9} | "
+        f"{'nfev_mean':>10} | "
+        f"{'params':>6} | "
+        f"{'CNOTs':>5} | "
+        f"{'depth':>5} | "
+        f"{'gates':>5}"
+    )
+
+    print("-" * 130)
+
     for reps, stats in sorted(summary.items()):
         print(
-            f"reps={reps} | "
-            f"mean={stats['mean_fidelity']:.6f} | "
-            f"std={stats['std_fidelity']:.6f} | "
-            f"min={stats['min_fidelity']:.6f} | "
-            f"max={stats['max_fidelity']:.6f}"
+            f"{reps:>4} | "
+            f"{stats['mean_fidelity']:>10.6f} | "
+            f"{stats['std_fidelity']:>9.6f} | "
+            f"{stats['min_fidelity']:>10.6f} | "
+            f"{stats['max_fidelity']:>10.6f} | "
+            f"{stats['mean_time']:>10.4f} | "
+            f"{stats['std_time']:>9.4f} | "
+            f"{stats['mean_function_evaluations']:>10.1f} | "
+            f"{stats['mean_parameters']:>6.1f} | "
+            f"{stats['mean_cnots']:>5.1f} | "
+            f"{stats['mean_depth']:>5.1f} | "
+            f"{stats['mean_gates']:>5.1f}"
+
         )
 
 if __name__ == "__main__":
