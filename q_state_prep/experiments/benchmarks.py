@@ -25,3 +25,23 @@ def run_reps_benchmark(n_qubits: int, reps_values: list[int], seeds: list[int], 
             experiments.append(experiment)
 
     return experiments
+
+def run_budget_benchmark(n_qubits: int, reps_values: list[int], seeds: list[int], target_seed: int, evaluation_budget: int) -> list[Experiment]:
+    experiments = []
+
+    for max_evaluations in evaluation_budget:
+        for reps in reps_values:
+            for seed in seeds:
+                config = ExperimentConfig(
+                    n_qubits=n_qubits,
+                    reps=reps,
+                    optimizer="COBYLA",
+                    max_evaluations=max_evaluations,
+                    seed=seed,
+                    target_seed=target_seed,
+                )
+    
+                experiment = run_experiment(config)
+                experiments.append(experiment)
+
+    return experiments

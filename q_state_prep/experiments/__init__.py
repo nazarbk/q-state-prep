@@ -1,6 +1,6 @@
 from .core import *
 from .runner import generate_random_target, run_experiment
-from .benchmarks import run_reps_benchmark
+from .benchmarks import run_reps_benchmark, run_budget_benchmark
 from .analysis import summarize_by_reps
 
 __all__ = [
@@ -9,5 +9,6 @@ __all__ = [
     "generate_random_target",
     "run_experiment",
     "run_reps_benchmark",
+    "run_budget_benchmark",
     "summarize_by_reps"
 ]
