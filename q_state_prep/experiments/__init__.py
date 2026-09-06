@@ -1,7 +1,8 @@
 from .core import *
 from .runner import generate_random_target, run_experiment
 from .benchmarks import run_reps_benchmark, run_budget_benchmark
-from .analysis import summarize_by_reps
+from .analysis import summarize_by_reps, summarize_by_budget
+from .io import save_experiments_csv
 
 __all__ = [
     "Experiment",
@@ -10,5 +11,7 @@ __all__ = [
     "run_experiment",
     "run_reps_benchmark",
     "run_budget_benchmark",
-    "summarize_by_reps"
+    "summarize_by_reps",
+    "summarize_by_budget",
+    "save_experiments_csv"
 ]

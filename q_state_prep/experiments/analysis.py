@@ -1,5 +1,4 @@
 from collections import defaultdict
-
 import numpy as np
 
 from q_state_prep.experiments.core import Experiment
@@ -43,3 +42,43 @@ def summarize_by_reps(experiments: list[Experiment]) -> dict[int, dict[str, floa
         }
 
     return dict(summary)
+
+def summarize_by_budget(experiments: list[Experiment]) -> dict[int, dict[int, dict[str, float]]]:
+
+    grouped = defaultdict(lambda: defaultdict(list))
+
+    for experiment in experiments:
+        budget = experiment.config.max_evaluations
+        reps = experiment.config.reps
+        result = experiment.result
+
+        grouped[budget][reps].append(result)
+
+    summary = {}
+
+    for budget, reps_group in grouped.items():
+        summary[budget] = {}
+
+        for reps, results in reps_group.items():
+            fidelities = [result.fidelity for result in results]
+            times = [result.training_time for result in results]
+            function_evaluations = [
+                result.function_evaluations
+                for result in results
+            ]
+
+            summary[budget][reps] = {
+                "mean_fidelity": float(np.mean(fidelities)),
+                "std_fidelity": float(np.std(fidelities, ddof=1)),
+                "min_fidelity": float(np.min(fidelities)),
+                "max_fidelity": float(np.max(fidelities)),
+                "mean_time": float(np.mean(times)),
+                "std_time": float(np.std(times, ddof=1)),
+                "mean_function_evaluations": float(np.mean(function_evaluations)),
+                "mean_parameters": float(np.mean([result.num_parameters for result in results])),
+                "mean_cnots": float(np.mean([result.num_cnots for result in results])),
+                "mean_depth": float(np.mean([result.depth for result in results])),
+                "mean_gates": float(np.mean([result.num_gates for result in results])),
+            }
+
+    return summary

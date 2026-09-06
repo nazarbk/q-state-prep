@@ -1,5 +1,5 @@
 from q_state_prep.vqc_prep import create_ansatz, get_circuit_metrics, VQCStatePrep, ExperimentalResult
-from q_state_prep.experiments import ExperimentConfig, run_experiment, run_reps_benchmark, summarize_by_reps
+from q_state_prep.experiments import ExperimentConfig, run_experiment, run_reps_benchmark, summarize_by_reps, summarize_by_budget, run_budget_benchmark
 import numpy as np
 
 
@@ -174,3 +174,31 @@ def test_summaryze_by_reps():
             <= summary[reps]["mean_fidelity"]
             <= summary[reps]["max_fidelity"]
         )
+
+def test_summarize_by_budget():
+    experiments = run_budget_benchmark(
+        n_qubits=4,
+        reps_values = [1, 2],
+        seeds=[0, 1],
+        target_seed=123,
+        evaluation_budgets=[100, 300], 
+    )
+
+    summary = summarize_by_budget(experiments)
+
+    assert set(summary.keys()) == {100, 300}
+
+    for budget in [100, 300]:
+        assert set(summary[budget].keys()) == {1, 2}
+
+        for reps in [1, 2]:
+            stats = summary[budget][reps]
+
+            assert "mean_fidelity" in stats
+            assert "std_fidelity" in stats
+            assert "min_fidelity" in stats
+            assert "max_fidelity" in stats
+
+            assert 0.0 <= stats["mean_fidelity"] <= 1.0
+            assert stats["std_fidelity"] >= 0.0
+            assert stats["min_fidelity"] <= stats["max_fidelity"]

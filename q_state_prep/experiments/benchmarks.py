@@ -26,10 +26,10 @@ def run_reps_benchmark(n_qubits: int, reps_values: list[int], seeds: list[int], 
 
     return experiments
 
-def run_budget_benchmark(n_qubits: int, reps_values: list[int], seeds: list[int], target_seed: int, evaluation_budget: int) -> list[Experiment]:
+def run_budget_benchmark(n_qubits: int, reps_values: list[int], seeds: list[int], target_seed: int, evaluation_budgets: int) -> list[Experiment]:
     experiments = []
 
-    for max_evaluations in evaluation_budget:
+    for max_evaluations in evaluation_budgets:
         for reps in reps_values:
             for seed in seeds:
                 config = ExperimentConfig(

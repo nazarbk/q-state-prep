@@ -5,7 +5,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from q_state_prep.experiments.core import Experiment
-from q_state_prep.experiments.analysis import summarize_by_reps
+from q_state_prep.experiments.analysis import summarize_by_reps, summarize_by_budget
 
 OUTPUT_DIR = Path("media/experiments")
 
@@ -142,4 +142,95 @@ def plot_fidelity_vs_depth(experiments: list[Experiment]) -> None:
 
     plt.tight_layout()
     plt.savefig(OUTPUT_DIR / "fidelity_vs_depth.png", dpi=300)
+    plt.close()
+
+def plot_fidelity_vs_budget(experiments: list[Experiment],) -> None:
+    summary = summarize_by_budget(experiments)
+
+    budgets = sorted(summary.keys())
+
+    reps_values = sorted({
+        reps 
+        for budget_summary in summary.values()
+        for reps in budget_summary.keys()
+    })
+
+    plt.figure(figsize=(8, 5))
+
+    for reps in reps_values:
+        fidelities = [
+            summary[budget][reps]["mean_fidelity"]
+            for budget in budgets
+        ]
+
+        plt.plot(
+            budgets, 
+            fidelities, 
+            marker='o',
+            label=f"reps={reps}"
+        )
+
+    plt.xlabel("Optimization budget (function evaluations)")
+    plt.ylabel("Mean fidelity")
+    plt.title("Fidelity vs Optimization Budget")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    plt.savefig(
+        OUTPUT_DIR / "fidelity_vs_budget.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
+
+    plt.close()
+
+def plot_fidelity_vs_budget_std(experiments: list[Experiment],) -> None:
+    summary = summarize_by_budget(experiments)
+
+    budgets = sorted(summary.keys())
+
+    reps_values = sorted({
+        reps 
+        for budget_summary in summary.values()
+        for reps in budget_summary.keys()
+    })
+
+    plt.figure(figsize=(8, 5))
+
+    for reps in reps_values:
+        means = [
+            summary[budget][reps]["mean_fidelity"]
+            for budget in budgets
+        ]
+
+        stds = [
+            summary[budget][reps]["std_fidelity"]
+            for budget in budgets
+        ]
+
+        plt.errorbar(
+            budgets, 
+            means,
+            yerr=stds, 
+            marker='o',
+            capsize=4,
+            label=f"reps={reps}"
+        )
+
+    plt.xlabel("Optimization budget (function evaluations)")
+    plt.ylabel("Mean fidelity")
+    plt.title("Fidelity vs Optimization Budget")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    plt.savefig(
+        OUTPUT_DIR / "fidelity_vs_budget_std.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
+
     plt.close()
