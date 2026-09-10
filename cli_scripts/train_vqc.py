@@ -1,65 +1,44 @@
+"""Train one VQC state-preparation experiment and save its learning curve."""
+
 import sys
-import os
-# Add root directory to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pathlib import Path
 
-import numpy as np
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from q_state_prep.vqc_prep import create_ansatz, VQCStatePrep
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from q_state_prep.utils import count_cnots, generate_noise_map_state
+from q_state_prep.vqc_prep import VQCStatePrep, create_ansatz
 
-def run_training():
-    print("\n STARTING TRAINING: QUANTUM MACHINE LEARNING")
-    print("=" * 65)
 
-    # 1. System Configuration
-    # We'll start with 4 qubits so that training takes seconds, not minutes
+def run_training() -> None:
     n_qubits = 5
     reps = 5
-    maxiter = 800
-
-    print(f"[*] System: {n_qubits} qubits (Space of {2**n_qubits} states)")
-
-    # 2. Generate the target state (our procedural noise map)
-    print("[*] Generating the target state: 1D visual noise map...")
-    target_amplitudes = generate_noise_map_state(n_qubits)
-
-    # 3. Building the Ansatz
-    result = trainer.train(maxiter = maxiter)
+    max_evaluations = 800
+    target_amplitudes = generate_noise_map_state(n_qubits, seed=123)
     ansatz = create_ansatz(n_qubits, reps)
-    cnots = count_cnots(ansatz)
-    weights = result.weights
-    print(f"[*] Efficient Ansatz created: {cnots} CNOTs, {weights} free parameters.")
-
-    # 4. Initialize and Train
     trainer = VQCStatePrep(target_amplitudes, ansatz)
-    print(f"[*] Running COBYLA optimizer (Maximum iterations: {maxiter})...")
+    result = trainer.train(max_evaluations=max_evaluations, seed=42)
 
-    best_weights, best_fidelity, cost_history = trainer.train(maxiter=maxiter)
+    cnots = count_cnots(ansatz)
+    print(f"Qubits: {n_qubits} | parameters: {result.num_parameters} | CNOTs: {cnots}")
+    print(f"Best fidelity: {result.fidelity:.3%} after {result.function_evaluations} evaluations")
 
-    print("=" * 65)
-    print(f"Training completed!")
-    print(f"Best fidelity achieved: {best_fidelity:.2f}")
+    figure, axis = plt.subplots(figsize=(10, 6))
+    axis.plot(np.minimum.accumulate(result.cost_history), color="#2563eb", label="Best cost so far")
+    axis.set(xlabel="Objective evaluation", ylabel="Cost (1 - fidelity)")
+    axis.grid(alpha=0.3)
+    axis.legend()
+    output = ROOT / "media" / "learning_curve.png"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output, dpi=300, bbox_inches="tight")
+    print(f"Learning curve saved to {output}")
 
-    # 5. Save the convergence plot
-    # IMPORTANT: We use `plt.savefig` instead of `plt.show()` to avoid the
-    # Tkinter error we encountered earlier. This saves a flawless PNG image.
-    plt.figure(figsize=(10, 6))
-    plt.plot(cost_history, color='#2563eb', linewidth=2, label='Error (1 - Fidelity)')
-    plt.axhline(y=0.01, color='#dc2626', linestyle='--', label='Goal (Fidelity 99%)')
-    
-    plt.title(f"Learning Curve VQC\n({n_qubits} Qubits, {cnots} CNOTs)", fontsize=14)
-    plt.xlabel("COBYLA iterations", fontsize=12)
-    plt.ylabel("Error (Cost)", fontsize=12)
-    plt.legend(fontsize=12)
-    plt.grid(True, alpha=0.3)
-    
-    graphic_file = "./media/learning_curve.png"
-    plt.savefig(graphic_file, dpi=300, bbox_inches='tight')
-    print(f"📊 Training graph saved as '{graphic_file}'")
-    print("=" * 65 + "\n")
 
 if __name__ == "__main__":
     run_training()

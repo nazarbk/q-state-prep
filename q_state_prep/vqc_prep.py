@@ -1,9 +1,9 @@
 from qiskit import QuantumCircuit
-from qiskit.circuit.library import EfficientSU2
+from qiskit.circuit.library import efficient_su2
 from qiskit.quantum_info import Statevector, state_fidelity
 from scipy.optimize import minimize
 from dataclasses import dataclass
-from typing import  List
+from typing import List
 import numpy as np
 import time
 
@@ -20,14 +20,21 @@ def create_ansatz(n_qubits: int, reps: int = 2) -> QuantumCircuit:
         A QuantumCircuit with free parameters.
     """
 
-    ansatz = EfficientSU2(
+    if n_qubits < 1:
+        raise ValueError("n_qubits must be at least 1.")
+    if reps < 1:
+        raise ValueError("reps must be at least 1.")
+
+    ansatz = efficient_su2(
         num_qubits=n_qubits,
         su2_gates=['ry', 'rz'],
         entanglement='linear',
-        reps=reps
+        reps=reps,
     )
-
-    return ansatz.decompose()
+    # Keep experiment inputs with the circuit so callers do not need to track
+    # them separately.  ``efficient_su2`` already returns a decomposed circuit.
+    ansatz.metadata = {"reps": reps, "entanglement": "linear"}
+    return ansatz
 
 def get_circuit_metrics(ansatz: QuantumCircuit) -> dict:
     """
@@ -83,7 +90,17 @@ class VQCStatePrep:
             ansatz: The parameterized Qiskit circuit.
         """
 
-        self.target_sv = Statevector(target_amplitudes)
+        target = np.asarray(target_amplitudes, dtype=complex)
+        if target.ndim != 1 or target.size == 0 or target.size & (target.size - 1):
+            raise ValueError("target_amplitudes must be a non-empty vector of length 2**n.")
+        if not np.all(np.isfinite(target)):
+            raise ValueError("target_amplitudes must contain only finite values.")
+        if not np.isclose(np.linalg.norm(target), 1.0):
+            raise ValueError("target_amplitudes must be normalized (norm = 1).")
+        if ansatz.num_qubits != int(np.log2(target.size)):
+            raise ValueError("The ansatz qubit count must match target_amplitudes.")
+
+        self.target_sv = Statevector(target)
         self.ansatz = ansatz
 
         self.cost_history = []
@@ -126,6 +143,14 @@ class VQCStatePrep:
         """
 
         num_params = self.ansatz.num_parameters
+        if max_evaluations < 1:
+            raise ValueError("max_evaluations must be at least 1.")
+        optimizer = optimizer.upper()
+        if optimizer == "COBYLA" and max_evaluations < num_params + 2:
+            raise ValueError(
+                "COBYLA requires max_evaluations to be at least the number "
+                f"of ansatz parameters plus 2 ({num_params + 2})."
+            )
 
         # We initialize the angles to random values between -pi and pi
         rgn = np.random.default_rng(seed)
@@ -140,7 +165,7 @@ class VQCStatePrep:
 
         start_time = time.perf_counter()
 
-        if optimizer.upper() == "COBYLA":
+        if optimizer == "COBYLA":
 
             result = minimize(
                 self._const_function,
@@ -194,7 +219,7 @@ class VQCStatePrep:
             message=message,
 
             seed=seed,
-            reps=self.ansatz.metadata["reps"] if "reps" in self.ansatz.metadata else 0,
+            reps=(self.ansatz.metadata or {}).get("reps", 0),
 
             num_qubits=metrics["num_qubits"],
             num_parameters=metrics["num_parameters"],
@@ -208,26 +233,29 @@ class VQCStatePrep:
             self, 
             initial_weights: np.ndarray,
             max_evaluations: int,
-            seed: int
+            seed: int,
+            a: float = 0.01,
+            c: float = 0.1
     ) -> tuple[np.ndarray, float, bool, int, str]:
 
         rng = np.random.default_rng(seed)
 
         weights = initial_weights.copy()
 
+        initial_cost = self._const_function(weights)
+
+        best_weights = weights.copy()
+        best_cost = initial_cost
+
+        evaluations = 1
+
         num_params = len(weights)
 
         # SPSA hyperparameters
-        a = 0.1
-        c = 0.1
         alpha = 0.602
         gamma = 0.101
         A = max(10, int(0.1 * max_evaluations))
 
-        best_weights = weights.copy()
-        best_cost = np.inf
-
-        evaluations = 0
         iteration = 0
 
         while evaluations + 2 <= max_evaluations:

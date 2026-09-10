@@ -19,7 +19,7 @@ def main():
         n_qubits=4,
         reps=4,
         optimizer="SPSA",
-        max_evaluations=100,
+        max_evaluations=300,
         seed=0,
         target_seed=123,
     )

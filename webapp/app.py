@@ -1,191 +1,144 @@
+"""Interactive Streamlit explorer for quantum state-preparation trade-offs."""
+
 import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import math
+from pathlib import Path
 
-import streamlit as st
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import streamlit as st
 
-from q_state_prep.utils import generate_noise_map_state, count_cnots
-from q_state_prep.exact_prep import get_ry_angles, build_exact_circuit
-from q_state_prep.vqc_prep import *
-from qiskit.quantum_info import Statevector, state_fidelity
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-# PAGE CONFIGURATION
-st.set_page_config(
-    page_title="Quantum Noise Generator",
-    page_icon="",
-    layout="wide"
+from q_state_prep.experiments import ComparisonConfig, run_comparison
+from q_state_prep.utils import generate_noise_map_state
+
+
+st.set_page_config(page_title="Quantum State Preparation Explorer", page_icon="⚛️", layout="wide")
+st.title("Quantum State Preparation Explorer")
+st.caption(
+    "Compare exact preparation, branch pruning, and a hardware-efficient VQC "
+    "on the same reproducible procedural-noise target."
 )
 
-st.title("Quantum Procedural Noise Generator")
-st.markdown("Explore how Variational Quantum Circuits (VQC) optimize state preparation for procedural generation compared to exact methods.")
 
-# SIDEBAR CONTROLS
+def show_amplitudes(target: np.ndarray, methods: list) -> None:
+    fig, axis = plt.subplots(figsize=(11, 3.5))
+    indices = np.arange(target.size)
+    axis.plot(indices, target, "--", color="black", linewidth=2, label="Target")
+    colors = ["#2563eb", "#f59e0b", "#dc2626"]
+    for method, color in zip(methods, colors):
+        axis.plot(indices, method.amplitudes, marker="o", markersize=3, linewidth=1.5,
+                  color=color, label=method.name)
+    axis.set(xlabel="State index", ylabel="Amplitude")
+    axis.grid(alpha=0.25)
+    axis.legend(ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.25))
+    st.pyplot(fig, clear_figure=True)
+
+
+@st.cache_data(show_spinner=False)
+def cached_comparison(config: ComparisonConfig):
+    """Avoid repeating expensive transpilation and optimization for one setup."""
+    return run_comparison(config)
+
+
 with st.sidebar:
-    st.header("⚙️ Quantum Parameters")
-    
-    # Safe limit: 2 to 6 qubits to prevent browser freezing during local simulation
-    n_qubits = st.slider(
-        "Number of qubits",
-        min_value=2, max_value=6, value=4, step=1,
-        help="Defines map resolution. 4 qubits = 16 values, 6 qubits = 64 values..."
+    st.header("Experiment configuration")
+    n_qubits = st.slider("Qubits", min_value=2, max_value=6, value=4)
+    reps = st.slider("VQC layers (reps)", min_value=1, max_value=5, value=3)
+    optimizer = st.selectbox("Optimizer", options=["COBYLA", "SPSA"])
+    parameter_count = 2 * n_qubits * (reps + 1)
+    minimum_budget = parameter_count + 2 if optimizer == "COBYLA" else 20
+    default_budget = minimum_budget + 20 * math.ceil(
+        max(0, 300 - minimum_budget) / 20
     )
-
-    st.markdown("---")
-    st.subheader("VQC Configuration")
-    reps = st.slider(
-        "Ansatz Layers (Reps)",
-        min_value=1, max_value=5, value=3, step=1,
-        help="More layers = higher potential fidelity but more CNOT gates."
+    max_evaluations = st.slider(
+        "Evaluation budget", min_value=minimum_budget, max_value=800,
+        value=min(default_budget, 800), step=20,
+        help=("COBYLA requires at least parameters + 2 evaluations; this ansatz has "
+              f"{parameter_count} parameters."),
     )
-    maxiter = st.slider(
-        "Max iterations",
-        min_value=100, max_value=800, value=300, step=50,
-        help="Iteration limit for the COBYLA classical optimizer."
+    pruning_tolerance = st.slider(
+        "Pruning angle tolerance (radians)", min_value=0.0, max_value=1.5,
+        value=0.30, step=0.05,
+        help="Controlled RY rotations at or below this angle are omitted.",
     )
+    target_seed = st.number_input("Target seed", min_value=0, value=123, step=1)
+    optimization_seed = st.number_input("Optimizer seed", min_value=0, value=42, step=1)
+    run_button = st.button("Run comparison", type="primary", use_container_width=True)
 
-    run_button = st.button("🚀 Run Comparision", type="primary", use_container_width=True)
+config = ComparisonConfig(
+    n_qubits=n_qubits,
+    reps=reps,
+    optimizer=optimizer,
+    max_evaluations=max_evaluations,
+    optimization_seed=int(optimization_seed),
+    target_seed=int(target_seed),
+    pruning_tolerance=pruning_tolerance,
+)
 
-
-# MAIN PANEL: TARGET STATE VISUALIZATION
-st.header("1. Target: Procedural Noise Map (1D & 2D)")
-
-# We wrap the generator in a Streamlit cache decorator
-# This prevents regenerating the random noise unless n_qubits changes
-# Solve, only generates 1 map per n_qubits...
-if 'target_amplitudes' not in st.session_state or st.session_state.get('last_qubits') != n_qubits:
-    st.session_state['target_amplitudes'] = generate_noise_map_state(n_qubits)
-    st.session_state['last_qubits'] = n_qubits
-
-# Generate amplitudes using the cached function
-target_amplitudes = st.session_state['target_amplitudes']
-n_states = len(target_amplitudes)
-
-st.subheader("1D Amplitude Profile")
-fig_1d, ax_1d = plt.subplots(figsize=(10, 3))
-ax_1d.plot(range(n_states), target_amplitudes, marker='o', color="#2563eb", linewidth=2, markersize=6)
-ax_1d.fill_between(range(n_states), target_amplitudes, color="#3b82f6", alpha=0.2)
-
-ax_1d.set_title(f"Ideal Noise Profile ({n_qubits} Qubits | {n_states} States)", fontweight='bold')
-ax_1d.set_xlabel("Quantum State Index")
-ax_1d.set_ylabel("Amplitude")
-ax_1d.grid(True, alpha=0.3)
-
-# Render plot in Streamlit
-st.pyplot(fig_1d)
-
-
-# RENDER PLACEHOLDER (NEXT STEPS)
 if run_button:
-    st.divider()
-    st.header("2. Exact Method (Grover-Rudolph)")
+    with st.spinner("Simulating exact, pruned, and variational circuits..."):
+        st.session_state["comparison"] = cached_comparison(config)
 
-    with st.spinner("Compiling Exact Circuit... This may take a few seconds for >5 qubits."):
-        # 1. Exact Method Calculations
-        target_sv = Statevector(target_amplitudes)
-        angles = get_ry_angles(target_amplitudes)
-        exact_circuit = build_exact_circuit(angles, tol=1e-7)
+comparison = st.session_state.get("comparison")
+if comparison is None:
+    target_preview = generate_noise_map_state(n_qubits, seed=int(target_seed))
+    st.subheader("Target preview")
+    preview_figure, preview_axis = plt.subplots(figsize=(11, 3.5))
+    preview_axis.plot(target_preview, marker="o", color="#2563eb")
+    preview_axis.set(xlabel="State index", ylabel="Amplitude")
+    preview_axis.grid(alpha=0.25)
+    st.pyplot(preview_figure, clear_figure=True)
+    st.info("Set the parameters and select **Run comparison** to evaluate all methods.")
+    st.stop()
 
-        # Count CNOTs (this is the transpiler bottleneck)
-        exact_cnots = count_cnots(exact_circuit)
+if comparison.config != config:
+    st.warning("The controls have changed. The results below correspond to the last run.")
 
-        # Simulate the result
-        exact_circuit_rev = exact_circuit.reverse_bits()
-        exact_sv = Statevector(exact_circuit_rev)
-        exact_fid = state_fidelity(target_sv, exact_sv)
+st.subheader("Results")
+methods = [comparison.exact, comparison.pruned, comparison.variational]
+columns = st.columns(3)
+baseline_cnots = comparison.exact.num_cnots
+for column, method in zip(columns, methods):
+    reduction = 100 * (1 - method.num_cnots / baseline_cnots) if baseline_cnots else 0.0
+    with column:
+        st.markdown(f"#### {method.name}")
+        st.metric("Fidelity", f"{method.fidelity:.3%}")
+        st.metric("CNOTs after transpilation", method.num_cnots,
+                  delta="Baseline" if method is comparison.exact else f"{reduction:.1f}% vs exact",
+                  delta_color="off" if method is comparison.exact else "inverse")
+        st.metric("Circuit depth", method.depth)
+        st.caption(f"Wall time: {method.training_time:.3f} s")
+        if method.function_evaluations is not None:
+            st.caption(f"Objective evaluations: {method.function_evaluations}")
 
-        # Extract resulting amplitudes (using np.abs for ploting)
-        exact_result_amplitudes = np.abs(exact_sv.data)
+st.subheader("Prepared amplitudes")
+show_amplitudes(comparison.target_amplitudes, methods)
 
-    # 2. Display metrics (Visual Cards)
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="Fidelity", value=f"{exact_fid * 100:.2f}%", help="100% means a perfect match with the target state.")
-    with col2:
-        st.metric(label="CNOT Gates (Depth)", value=exact_cnots, delta="Baseline", delta_color="off")
-    with col3:
-        st.metric(label="Total Qubits", value=n_qubits)
+st.subheader("Resource–accuracy trade-off")
+tradeoff_figure, tradeoff_axis = plt.subplots(figsize=(7, 4))
+for method in methods:
+    tradeoff_axis.scatter(method.num_cnots, method.fidelity, s=85, label=method.name)
+    tradeoff_axis.annotate(method.name, (method.num_cnots, method.fidelity), xytext=(5, 5),
+                           textcoords="offset points")
+tradeoff_axis.set(xlabel="CNOTs after transpilation", ylabel="Fidelity", ylim=(0, 1.02))
+tradeoff_axis.grid(alpha=0.25)
+st.pyplot(tradeoff_figure, clear_figure=True)
 
-    # 3. Comparative Plot: Target VS Exact
-    fig_exact, ax_exact = plt.subplots(figsize=(10, 3))
+if comparison.variational.cost_history:
+    st.subheader(f"{comparison.variational.name} convergence")
+    costs = np.asarray(comparison.variational.cost_history)
+    convergence_figure, convergence_axis = plt.subplots(figsize=(11, 3.5))
+    convergence_axis.plot(np.minimum.accumulate(costs), color="#dc2626", label="Best cost so far")
+    convergence_axis.set(xlabel="Objective evaluation", ylabel="Cost (1 − fidelity)")
+    convergence_axis.grid(alpha=0.25)
+    convergence_axis.legend()
+    st.pyplot(convergence_figure, clear_figure=True)
 
-    # Target line (Ideal) 
-    ax_exact.plot(range(n_states), target_amplitudes, linestyle='--', color='gray', label='Target (Ideal)', linewidth=2)
-
-    # Exact result line
-    ax_exact.plot(range(n_states), exact_result_amplitudes, marker='x', color='#ef4444', label='Exact Method', linewidth=2, alpha=0.8)
-
-    ax_exact.set_title("Target vs Exact Method Comparision", fontweight='bold')
-    ax_exact.set_xlabel("Quantum State Index")
-    ax_exact.set_ylabel("Amplitude")
-    ax_exact.legend()
-    ax_exact.grid(True, alpha=0.3)
-
-    st.pyplot(fig_exact)
-
-    # 3. VARIATIONAL QUANTUM CIRCUIT (VQC)
-    st.divider()
-    st.header("3. Variational Quantum Circuit (VQC)")
-
-    with st.spinner("Trainning VQC with COBYLA optimizer... This might take a few seconds."):
-        # 1. Build a measure Ansatz
-        ansatz = create_ansatz(n_qubits, reps)
-        vqc_cnots = count_cnots(ansatz)
-
-        # 2. Train the VQC
-        trainer = VQCStatePrep(target_amplitudes, ansatz)
-        result = trainer.train(maxiter= maxiter)
-
-        weights = result.weights
-        fidelity = result.fidelity
-        cost_history = result.cost_history
-
-        # 3. Simulate final state with the optimized weights
-        bound_circuit = ansatz.assign_parameters(weights)
-        vqc_sv = Statevector(bound_circuit)
-        vqc_result_amplitudes = np.abs(vqc_sv.data)
-
-        # Calculate CNOT reduction percentage
-        cnot_reduction = 100 * (1 - (vqc_cnots / exact_cnots)) if exact_cnots > 0 else 0
-
-    # 4. Display VQC Metrics
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="VQC Fidelity", value=f"{fidelity * 100:.2f}%", help="Higher is better")
-    with col2:
-        st.metric(label="VQC CNOT Gates", value=vqc_cnots, delta=f"-{cnot_reduction:.1f}% vs Exact", delta_color="inverse")
-    with col3:
-        st.metric(label="Final Error (Cost)", value=f"{cost_history[-1]:.4f}")
-
-    # 5. Comparative Plot: Target vs VQC Output
-    fig_vqc, ax_vqc = plt.subplots(figsize=(10, 3))
-
-    # Target line (Ideal) 
-    ax_vqc.plot(range(n_states), target_amplitudes, linestyle='--', color='gray', label='Target (Ideal)', linewidth=2)
-
-    # Exact result line
-    ax_vqc.plot(range(n_states), vqc_result_amplitudes, marker='x', color='#ef4444', label='VQC Method', linewidth=2, alpha=0.8)
-
-    ax_vqc.set_title(f"Target vs VQC State Preparation ({fidelity * 100:.1f}% Fidelity)", fontweight='bold')
-    ax_vqc.set_xlabel("Quantum State Index")
-    ax_vqc.set_ylabel("Amplitude")
-    ax_vqc.legend()
-    ax_vqc.grid(True, alpha=0.3)
-
-    st.pyplot(fig_vqc)
-
-    # 6. Learning Curve Plot
-    st.subheader("Training Convergence")
-    fig_loss, ax_loss = plt.subplots(figsize=(10, 3))
-
-    ax_loss.plot(cost_history, color="#2563eb", linewidth=2, label='Error (1 - Fidelity)')
-    ax_loss.axhline(y=0.01, color='#dc2626', linestyle='--', label='Goal (99% Fidelity)')
-
-    ax_loss.set_title("VQC Learning Curve (COBYLA)", fontweight='bold')
-    ax_loss.set_xlabel("Iterations")
-    ax_loss.set_ylabel("Cost")
-    ax_loss.legend()
-    ax_loss.grid(True, alpha=0.3)
-
-    st.pyplot(fig_loss)
+st.caption(
+    "Fidelity is calculated with ideal statevector simulation. CNOT count is obtained after "
+    "transpiling each circuit to the same CX/RZ/SX/X basis; it is a circuit-cost proxy, not a noisy-hardware result."
+)

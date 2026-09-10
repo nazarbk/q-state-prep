@@ -46,7 +46,7 @@ def test_training_returns_experiment_result():
     )
 
     result = trainer.train(
-        maxiter=5, 
+        max_evaluations=10,
         seed=42
     )
 
@@ -71,12 +71,16 @@ def test_training_returns_experiment_result():
 
     assert len(result.cost_history) == result.function_evaluations
 
+
+def test_ansatz_retains_reps_metadata():
+    assert create_ansatz(2, reps=3).metadata["reps"] == 3
+
 def test_run_experiment():
     config = ExperimentConfig(
         n_qubits=2, 
         reps=1,
         optimizer="COBYLA",
-        max_evaluations=5,
+        max_evaluations=10,
         seed=42,
         target_seed=123,
     )

@@ -15,19 +15,23 @@ def count_cnots(qc: QuantumCircuit) -> int:
     ops = transpiled_qc.count_ops()
     return ops.get('cx', 0)
 
-def generate_noise_map_state(n_qubits: int) -> np.ndarray:
+def generate_noise_map_state(n_qubits: int, seed: int | None = None) -> np.ndarray:
     """
     Generates a target state that simulates a 1D visual noise map,
     ideal for procedural video game environments.
     """
 
+    if n_qubits < 1:
+        raise ValueError("n_qubits must be at least 1.")
+
+    rng = np.random.default_rng(seed)
     n_states = 2**n_qubits
     x = np.linspace(0, 4 * np.pi, n_states)
 
-    phase_1 = np.random.uniform(0, 2 * np.pi)
-    phase_2 = np.random.uniform(0, 2 * np.pi)
+    phase_1 = rng.uniform(0, 2 * np.pi)
+    phase_2 = rng.uniform(0, 2 * np.pi)
 
-    amplitudes = np.sin(x + phase_1) + 0.5 * np.cos(2.5 * x + phase_2) + 0.2 * np.random.rand(n_states)
+    amplitudes = np.sin(x + phase_1) + 0.5 * np.cos(2.5 * x + phase_2) + 0.2 * rng.random(n_states)
 
     amplitudes = np.abs(amplitudes)
 
