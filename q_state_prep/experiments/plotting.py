@@ -137,7 +137,7 @@ def plot_fidelity_vs_depth(experiments: list[Experiment]) -> None:
     plt.ylabel("Mean fidelity")
     plt.title("Mean fidelity vs circuit depth")
 
-    plt.xticks(reps)
+    plt.xticks(depths)
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()

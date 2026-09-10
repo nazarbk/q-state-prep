@@ -68,7 +68,8 @@ def run_comparision():
     vqc_cnots = count_cnots(ansatz)
 
     trainer = VQCStatePrep(target_amplitudes, ansatz)
-    _, vqc_fid, _ = trainer.train(maxiter=800)
+    result = trainer.train(maxiter=800)
+    vqc_fid = result.fidelity
     t1 = time()
 
     results["Method"].append("VQC\nCOBYLA")

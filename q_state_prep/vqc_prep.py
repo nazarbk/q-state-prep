@@ -105,18 +105,24 @@ class VQCStatePrep:
 
         return cost
 
-    def train(self, maxiter: int = 300, seed: int = 42) -> ExperimentalResult:
+    def train(
+        self,
+        max_evaluations: int = 300,
+        seed: int = 42,
+        optimizer: str = "COBYLA", 
+    ) -> ExperimentalResult:
         """
         Runs the classical-quantum optimization loop.
 
         Args:
-            - maxiter: Maximum number of objective function evaluations.
-            - seed: Seed used to initialize the VQC parameters.
+            max_evaluations: Maximum number of objective-function evaluations.
+            seed: Seed used to initialize the VQC parameters and optimizer.
+            optimizer: Optimization algorithm. Supported values are
+                       "COBYLA" and "SPSA".
 
         Returns:
-            - best_weights: The final optimized angles.
-            - best_fidelity: The maximum fidelity achieved.
-            - cost_history: The list containing the history of the cost function.
+            ExperimentalResult containing the optimization results
+            and circuit metrics.
         """
 
         num_params = self.ansatz.num_parameters
@@ -134,28 +140,58 @@ class VQCStatePrep:
 
         start_time = time.perf_counter()
 
-        result = minimize(
-            self._const_function,
-            initial_weights,
-            method='COBYLA',
-            options={'maxiter': maxiter, 'disp': False}
-        )
+        if optimizer.upper() == "COBYLA":
+
+            result = minimize(
+                self._const_function,
+                initial_weights,
+                method='COBYLA',
+                options={'maxiter': max_evaluations, 'disp': False}
+            )
+    
+            best_weights = result.x
+            best_cost = result.fun
+            function_evaluations = result.nfev
+            success = result.success
+            status = result.status
+            message = result.message
+
+        elif optimizer == "SPSA":
+            (
+                best_weights,
+                best_cost,
+                success,
+                status,
+                message
+            ) = self._train_spsa(
+                initial_weights=initial_weights,
+                max_evaluations=max_evaluations,
+                seed=seed,
+            )
+
+            function_evaluations = len(self.cost_history)
+
+        else:
+            raise ValueError(
+                f"Unsupported optimizer: {optimizer}. "
+                "Supported optimizers are: COBYLA, SPSA."
+            )
 
         training_time = time.perf_counter() - start_time
-
+            
         metrics = get_circuit_metrics(self.ansatz)
 
         return ExperimentalResult(
-            weights=result.x,
-            fidelity=1.0 - result.fun,
+            weights=best_weights,
+            fidelity=1.0 - best_cost,
             cost_history=self.cost_history.copy(),
 
-            function_evaluations=result.nfev,
+            function_evaluations=function_evaluations,
             training_time=training_time,
 
-            success=result.success,
-            status=result.status,
-            message=result.message,
+            success=success,
+            status=status,
+            message=message,
 
             seed=seed,
             reps=self.ansatz.metadata["reps"] if "reps" in self.ansatz.metadata else 0,
@@ -167,4 +203,83 @@ class VQCStatePrep:
             depth=metrics["depth"],
             
         )
-        
+
+    def _train_spsa(
+            self, 
+            initial_weights: np.ndarray,
+            max_evaluations: int,
+            seed: int
+    ) -> tuple[np.ndarray, float, bool, int, str]:
+
+        rng = np.random.default_rng(seed)
+
+        weights = initial_weights.copy()
+
+        num_params = len(weights)
+
+        # SPSA hyperparameters
+        a = 0.1
+        c = 0.1
+        alpha = 0.602
+        gamma = 0.101
+        A = max(10, int(0.1 * max_evaluations))
+
+        best_weights = weights.copy()
+        best_cost = np.inf
+
+        evaluations = 0
+        iteration = 0
+
+        while evaluations + 2 <= max_evaluations:
+
+            iteration += 1
+
+            # Random perturbation vector
+            delta = rng.choice([-1.0, 1.0], size=num_params)
+
+            #SPSA learning-rate schedules
+            ak = a / ((iteration + A) ** alpha)
+            ck = c / (iteration ** gamma)
+
+            weight_plus = weights + ck * delta
+            weight_minus = weights - ck * delta
+
+            cost_plus = self._const_function(weight_plus)
+            cost_minus = self._const_function(weight_minus)
+
+            evaluations += 2
+
+            # Keep track of the best evaluated point
+            if cost_plus < best_cost:
+                best_cost = cost_plus
+                best_weights = weight_plus.copy()
+
+            if cost_minus < best_cost:
+                best_cost = cost_minus
+                best_weights = weight_minus.copy()
+
+            # SPSA gradient estimate
+            gradient = (
+                (cost_plus - cost_minus)
+                / (2.0 * ck * delta)
+            )
+
+            weights = weights - ak * gradient
+
+        if evaluations == 0:
+            return (
+                best_weights,
+                best_cost,
+                False, 
+                1, 
+                "SPSA could not perform an optimization step with the given evaluation budget.",
+            )
+
+        return (
+            best_weights,
+            best_cost,
+            True, 
+            0, 
+            f"SPSA completed using {evaluations} function evaluations.",
+        )
+

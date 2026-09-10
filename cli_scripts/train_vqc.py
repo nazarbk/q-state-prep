@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from q_state_prep.vqc_prep import create_ansatz, get_num_parameters, VQCStatePrep
+from q_state_prep.vqc_prep import create_ansatz, VQCStatePrep
 from q_state_prep.utils import count_cnots, generate_noise_map_state
 
 def run_training():
@@ -27,9 +27,10 @@ def run_training():
     target_amplitudes = generate_noise_map_state(n_qubits)
 
     # 3. Building the Ansatz
+    result = trainer.train(maxiter = maxiter)
     ansatz = create_ansatz(n_qubits, reps)
     cnots = count_cnots(ansatz)
-    weights = get_num_parameters(n_qubits, reps)
+    weights = result.weights
     print(f"[*] Efficient Ansatz created: {cnots} CNOTs, {weights} free parameters.")
 
     # 4. Initialize and Train

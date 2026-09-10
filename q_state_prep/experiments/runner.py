@@ -30,8 +30,9 @@ def run_experiment(config: ExperimentConfig) -> Experiment:
     )
 
     result = trainer.train(
-        maxiter=config.max_evaluations,
+        max_evaluations=config.max_evaluations,
         seed=config.seed,
+        optimizer=config.optimizer,
     )
 
     return Experiment(

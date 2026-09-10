@@ -135,7 +135,7 @@ if run_button:
 
         # 2. Train the VQC
         trainer = VQCStatePrep(target_amplitudes, ansatz)
-        result = trainer.train()
+        result = trainer.train(maxiter= maxiter)
 
         weights = result.weights
         fidelity = result.fidelity
