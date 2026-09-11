@@ -14,8 +14,8 @@ from q_state_prep.exact_prep import get_ry_angles, build_exact_circuit
 from q_state_prep.vqc_prep import create_ansatz, VQCStatePrep
 from q_state_prep.utils import count_cnots, generate_noise_map_state
 
-def run_comparision():
-    print("\n ALGORITHM COMPARISION")
+def run_comparison():
+    print("\n ALGORITHM COMPARISON")
     print("=" * 65)
 
     n_qubits = 5
@@ -77,8 +77,8 @@ def run_comparision():
     results["Fidelity"].append(vqc_fid)
     results["Time_s"].append(t1-t0)
 
-    # 4. Generate the Comparision Graph
-    print("\n[*] Generating the Comparision Chart...")
+    # 4. Generate the comparison graph
+    print("\n[*] Generating the comparison chart...")
     fig1, ax1 = plt.subplots(figsize=(10, 6))
 
     color_cnot = '#3b82f6'
@@ -117,10 +117,10 @@ def run_comparision():
 
     print("=" * 65)
     print("RESULTS RESUME")
-    print(f"Exacto:  {results['CNOTs'][0]:4} CNOTs  | Fidelity: {results['Fidelity'][0]:.2%} | Time (s): {results['Time_s'][0]:.2}s")
-    print(f"Poda:    {results['CNOTs'][1]:4} CNOTs  | Fidelity: {results['Fidelity'][1]:.2%} | Time (s): {results['Time_s'][1]:.2}s")
+    print(f"Exact:   {results['CNOTs'][0]:4} CNOTs  | Fidelity: {results['Fidelity'][0]:.2%} | Time (s): {results['Time_s'][0]:.2}s")
+    print(f"Pruned:  {results['CNOTs'][1]:4} CNOTs  | Fidelity: {results['Fidelity'][1]:.2%} | Time (s): {results['Time_s'][1]:.2}s")
     print(f"VQC:     {results['CNOTs'][2]:4} CNOTs  | Fidelity: {results['Fidelity'][2]:.2%} | Time (s): {results['Time_s'][2]:.2}s")
     print(f"\n📊 Graph saved as '{file}'")
 
 if __name__ == "__main__":
-    run_comparision()
+    run_comparison()
